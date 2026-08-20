@@ -58,6 +58,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private volatile boolean skipToResultRequested;
 	private volatile boolean skippedToResult;
 	private boolean spaceDown;
+	private boolean consumeLeftGesture;
 	private boolean dropSoundPlayed;
 	private boolean openSoundPlayed;
 	private int lastBounceImpact;
@@ -125,6 +126,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		skipToResultRequested = false;
 		skippedToResult = false;
 		spaceDown = false;
+		consumeLeftGesture = false;
 	}
 
 	@Override
@@ -240,7 +242,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	@Override
 	public void keyPressed(KeyEvent event)
 	{
-		if (!config.spaceControl() || !active
+		if (!active || !config.interactionControl().allowsSpace()
 			|| event.getKeyCode() != KeyEvent.VK_SPACE || spaceDown)
 		{
 			return;
@@ -282,24 +284,37 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	@Override
 	public MouseEvent mousePressed(MouseEvent event)
 	{
-		if (!config.leftClickControl() || !active || event.getButton() != MouseEvent.BUTTON1)
+		if (!active || event.getButton() != MouseEvent.BUTTON1
+			|| !config.interactionControl().allowsLeftClick())
 		{
 			return event;
 		}
 		handleAdvanceOrDismiss();
-		return null;
+		consumeLeftGesture = true;
+		event.consume();
+		return event;
 	}
 
 	@Override
 	public MouseEvent mouseReleased(MouseEvent event)
 	{
-		return active && config.leftClickControl() ? null : event;
+		if (consumeLeftGesture)
+		{
+			consumeLeftGesture = false;
+			event.consume();
+		}
+		return event;
 	}
 
 	@Override
 	public MouseEvent mouseClicked(MouseEvent event)
 	{
-		return active && config.leftClickControl() ? null : event;
+		if (consumeLeftGesture)
+		{
+			consumeLeftGesture = false;
+			event.consume();
+		}
+		return event;
 	}
 
 	@Override
@@ -311,7 +326,11 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	@Override
 	public MouseEvent mouseDragged(MouseEvent event)
 	{
-		return active && config.leftClickControl() ? null : event;
+		if (consumeLeftGesture)
+		{
+			event.consume();
+		}
+		return event;
 	}
 
 	@Override
@@ -728,12 +747,8 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 
 	private void drawDismissPrompt(Graphics2D graphics, int x, int width, int baseline)
 	{
-		boolean space = config.spaceControl();
-		boolean click = config.leftClickControl();
-		if (!space && !click)
-		{
-			return;
-		}
+		boolean space = config.interactionControl().allowsSpace();
+		boolean click = config.interactionControl().allowsLeftClick();
 		String prompt;
 		if (space && click)
 		{

@@ -1,6 +1,6 @@
 package com.edjoe.cluecase;
 
-enum AnimateClueTiers
+public enum AnimateClueTiers
 {
 	ALL("All tiers", 0),
 	MEDIUM_PLUS("Medium and above", 2),

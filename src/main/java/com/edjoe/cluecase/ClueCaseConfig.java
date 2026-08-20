@@ -18,26 +18,18 @@ public interface ClueCaseConfig extends Config
 	default AnimateClueTiers animateClueTiers() { return AnimateClueTiers.ALL; }
 
 	@ConfigItem(
-		keyName = "spaceControl",
-		name = "Space skips and closes",
-		description = "Allow Space to skip the animation or close the result.",
+		keyName = "interactionControl",
+		name = "Skip and close control",
+		description = "Choose which input skips the animation and closes the result.",
 		position = 1
 	)
-	default boolean spaceControl() { return true; }
-
-	@ConfigItem(
-		keyName = "leftClickControl",
-		name = "Left-click skips and closes",
-		description = "Allow left-click to skip the animation or close the result.",
-		position = 2
-	)
-	default boolean leftClickControl() { return true; }
+	default InteractionControl interactionControl() { return InteractionControl.BOTH; }
 
 	@ConfigItem(
 		keyName = "soundEffects",
 		name = "Sound effects",
 		description = "Play native game sounds during the casket animation and reward reel.",
-		position = 3
+		position = 2
 	)
 	default boolean soundEffects()
 	{

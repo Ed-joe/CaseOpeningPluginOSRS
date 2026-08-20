@@ -16,8 +16,7 @@ A RuneLite Plugin Hub plugin that presents clue-casket rewards through a case-op
 ## Configuration
 
 - **Animate clue tiers** selects the lowest clue tier that receives the animation.
-- **Space skips and closes** enables the Space control.
-- **Left-click skips and closes** enables the mouse control.
+- **Skip and close control** selects Space, left-click, or both.
 - **Sound effects** enables or disables animation audio.
 
 The bundled loot data contains the OSRS Wiki's per-roll probabilities, source-table sections, and volume-weighted 24-hour prices. The optional local updater refreshes this development resource; the installed plugin performs no network requests.
