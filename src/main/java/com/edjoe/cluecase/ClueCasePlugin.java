@@ -114,8 +114,7 @@ public class ClueCasePlugin extends Plugin
 		openedCasketItemId = event.getItemId();
 		pendingCasketOpen = true;
 		rewardScreenLoaded = false;
-		overlay.begin(openedCasketItemId);
-		log.debug("Authorized reward capture for casket itemId={}", openedCasketItemId);
+		log.debug("Awaiting reward screen for casket itemId={}", openedCasketItemId);
 	}
 
 	@Subscribe
@@ -132,6 +131,8 @@ public class ClueCasePlugin extends Plugin
 		}
 		hideRewardWidget();
 		rewardScreenLoaded = true;
+		overlay.begin(openedCasketItemId);
+		log.debug("Reward screen confirmed for casket itemId={}", openedCasketItemId);
 		tryStartFromRewardContainer();
 	}
 
