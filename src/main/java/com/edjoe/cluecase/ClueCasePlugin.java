@@ -1,6 +1,7 @@
 package com.edjoe.cluecase;
 
 import com.google.inject.Provides;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import javax.inject.Inject;
@@ -59,7 +60,7 @@ public class ClueCasePlugin extends Plugin
 	private int openedCasketItemId;
 	private boolean pendingCasketOpen;
 	private boolean rewardScreenLoaded;
-	private Widget hiddenRewardWidget;
+	private final List<Widget> hiddenRewardWidgets = new ArrayList<>();
 	private Widget hiddenNotificationWidget;
 
 	@Provides
@@ -213,22 +214,25 @@ public class ClueCasePlugin extends Plugin
 
 	private void hideRewardWidget()
 	{
-		Widget widget = client.getWidget(InterfaceID.TrailRewardscreen.UNIVERSE);
-		if (widget == null)
+		hiddenRewardWidgets.clear();
+		for (int childId = 0; childId <= 4; childId++)
 		{
-			return;
+			Widget widget = client.getWidget(InterfaceID.TRAIL_REWARDSCREEN, childId);
+			if (widget != null && !widget.isHidden())
+			{
+				widget.setHidden(true);
+				hiddenRewardWidgets.add(widget);
+			}
 		}
-		widget.setHidden(true);
-		hiddenRewardWidget = widget;
 	}
 
 	private void unhideRewardWidget()
 	{
-		if (hiddenRewardWidget != null)
+		for (Widget widget : hiddenRewardWidgets)
 		{
-			hiddenRewardWidget.setHidden(false);
-			hiddenRewardWidget = null;
+			widget.setHidden(false);
 		}
+		hiddenRewardWidgets.clear();
 	}
 
 	private void hideNotificationWidget()
