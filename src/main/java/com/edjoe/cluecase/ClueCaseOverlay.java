@@ -35,6 +35,8 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private static final int TILE_GAP = 12;
 	private static final int ITEM_ICON_SIZE = 38;
 	private static final int PANEL_MARGIN = 12;
+	private static final int PANEL_WIDTH = 700;
+	private static final int PANEL_HEIGHT = 400;
 	private static final int REEL_ITEM_COUNT = 64;
 	private static final int WINNING_INDEX = 52;
 	private static final int CASKET_DROP_DURATION = 900;
@@ -64,6 +66,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private int lastBounceImpact;
 	private int lastTickIndex;
 	private double winningStopPoint = TILE_SIZE / 2.0;
+	private Runnable onClose;
 
 	@Inject
 	ClueCaseOverlay(ClueCasePlugin plugin, ItemManager itemManager, ClueCaseConfig config,
@@ -115,6 +118,16 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		lastTickIndex = -1;
 	}
 
+	void setOnClose(Runnable onClose)
+	{
+		this.onClose = onClose;
+	}
+
+	boolean isActive()
+	{
+		return active;
+	}
+
 	void clear()
 	{
 		reel = Collections.emptyList();
@@ -127,6 +140,10 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		skippedToResult = false;
 		spaceDown = false;
 		consumeLeftGesture = false;
+		if (onClose != null)
+		{
+			onClose.run();
+		}
 	}
 
 	@Override
@@ -140,15 +157,14 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		long elapsed = System.currentTimeMillis() - startedAt;
 		int duration = REEL_DURATION;
 		Rectangle clip = graphics.getClipBounds();
-		// Cover the complete game viewport while the reveal is active. This also
-		// masks collection-log banners without cancelling or modifying them.
-		int panelHeight = clip.height;
-		int x = clip.x;
+		int panelWidth = Math.min(PANEL_WIDTH, Math.max(TILE_SIZE + PANEL_MARGIN * 2, clip.width - 32));
+		int panelHeight = Math.min(PANEL_HEIGHT, clip.height);
+		int x = clip.x + (clip.width - panelWidth) / 2;
 		int y = clip.y + (clip.height - panelHeight) / 2;
 		int reelX = x + PANEL_MARGIN;
-		int reelWidth = Math.max(TILE_SIZE, clip.width - PANEL_MARGIN * 2);
+		int reelWidth = panelWidth - PANEL_MARGIN * 2;
 		int reelY = y + (panelHeight - TILE_SIZE) / 2;
-		drawFrame(graphics, x, y, clip.width, panelHeight, reelY);
+		drawFrame(graphics, x, y, panelWidth, panelHeight, reelY);
 		if (elapsed < CASKET_DROP_DURATION)
 		{
 			if (!skippedToResult && elapsed >= CASKET_LANDS_AT && !dropSoundPlayed)
@@ -164,10 +180,10 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 				if (!skippedToResult && bounceImpact > lastBounceImpact)
 				{
 					lastBounceImpact = bounceImpact;
-					sounds.playBounce(bounceImpact);
+					sounds.playBounce();
 				}
 			}
-			drawCasketDrop(graphics, x, y, clip.width, panelHeight, elapsed);
+			drawCasketDrop(graphics, x, y, panelWidth, panelHeight, elapsed);
 			return null;
 		}
 
@@ -178,7 +194,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		}
 		if (elapsed < CASKET_DROP_DURATION + CASKET_OPENING_DURATION)
 		{
-			drawCasketOpening(graphics, x, y, clip.width, panelHeight, elapsed - CASKET_DROP_DURATION);
+			drawCasketOpening(graphics, x, y, panelWidth, panelHeight, elapsed - CASKET_DROP_DURATION);
 			return null;
 		}
 
@@ -545,8 +561,13 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 
 	private void drawFrame(Graphics2D graphics, int x, int y, int width, int height, int reelY)
 	{
-		graphics.setColor(new Color(18, 22, 31));
-		graphics.fillRect(x, y, width, height);
+		graphics.setColor(new Color(8, 11, 17, 150));
+		graphics.fillRoundRect(x - 5, y - 5, width + 10, height + 10, 20, 20);
+		graphics.setColor(new Color(18, 22, 31, 245));
+		graphics.fillRoundRect(x, y, width, height, 16, 16);
+		graphics.setColor(new Color(66, 81, 108));
+		graphics.setStroke(new BasicStroke(1.5f));
+		graphics.drawRoundRect(x, y, width - 1, height - 1, 16, 16);
 		graphics.setColor(new Color(45, 57, 79));
 		graphics.fillRoundRect(x + PANEL_MARGIN, reelY - 8,
 			width - PANEL_MARGIN * 2, TILE_SIZE + 16, 10, 10);
@@ -598,6 +619,10 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private void drawRewardTile(Graphics2D graphics, List<Loot> rewards, int x, int y,
 		LootRarity rarity)
 	{
+		if (rewards.isEmpty())
+		{
+			return;
+		}
 		if (rewards.size() == 1)
 		{
 			drawTile(graphics, rewards.get(0), x, y, rarity);

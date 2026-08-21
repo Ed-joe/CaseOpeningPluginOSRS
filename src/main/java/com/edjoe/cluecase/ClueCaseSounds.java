@@ -3,7 +3,6 @@ package com.edjoe.cluecase;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.api.Client;
-import net.runelite.api.SoundEffectVolume;
 
 /** Plays native Old School RuneScape sound effects through the game client. */
 @Singleton
@@ -35,9 +34,9 @@ class ClueCaseSounds
 		play(CASKET_THUD);
 	}
 
-	void playBounce(int bounce)
+	void playBounce()
 	{
-		play(CASKET_THUD, Math.max(0.28f, 0.62f - bounce * 0.10f));
+		play(CASKET_THUD);
 	}
 
 	void playTick()
@@ -52,16 +51,15 @@ class ClueCaseSounds
 
 	private void play(int soundId)
 	{
-		play(soundId, 1.0f);
-	}
-
-	private void play(int soundId, float volumeScale)
-	{
 		if (!config.soundEffects())
 		{
 			return;
 		}
-		int volume = Math.round(SoundEffectVolume.HIGH * volumeScale);
-		client.playSoundEffect(soundId, volume);
+		// The single-argument API follows the in-game Sound Effects slider,
+		// including its muted setting.
+		client.playSoundEffect(soundId);
+		// Layer a second native instance for a modest relative boost without
+		// bypassing the game's Sound Effects volume or mute setting.
+		client.playSoundEffect(soundId);
 	}
 }

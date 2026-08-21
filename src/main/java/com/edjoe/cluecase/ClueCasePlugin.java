@@ -14,6 +14,7 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyManager;
@@ -58,6 +59,8 @@ public class ClueCasePlugin extends Plugin
 	private int openedCasketItemId;
 	private boolean pendingCasketOpen;
 	private boolean rewardScreenLoaded;
+	private Widget hiddenRewardWidget;
+	private Widget hiddenNotificationWidget;
 
 	@Provides
 	ClueCaseConfig provideConfig(ConfigManager configManager)
@@ -71,6 +74,7 @@ public class ClueCasePlugin extends Plugin
 		overlayManager.add(overlay);
 		keyManager.registerKeyListener(overlay);
 		mouseManager.registerMouseListener(overlay);
+		overlay.setOnClose(this::restoreHiddenWidgets);
 		log.debug("Clue Case Opening started");
 	}
 
@@ -116,10 +120,16 @@ public class ClueCasePlugin extends Plugin
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded event)
 	{
+		if (event.getGroupId() == InterfaceID.NOTIFICATION_DISPLAY && overlay.isActive())
+		{
+			hideNotificationWidget();
+			return;
+		}
 		if (event.getGroupId() != InterfaceID.TRAIL_REWARDSCREEN || !pendingCasketOpen)
 		{
 			return;
 		}
+		hideRewardWidget();
 		rewardScreenLoaded = true;
 		tryStartFromRewardContainer();
 	}
@@ -199,6 +209,47 @@ public class ClueCasePlugin extends Plugin
 		rewardScreenLoaded = false;
 		openedCasketItemId = 0;
 		casketOpenedAt = 0L;
+	}
+
+	private void hideRewardWidget()
+	{
+		Widget widget = client.getWidget(InterfaceID.TrailRewardscreen.UNIVERSE);
+		if (widget == null)
+		{
+			return;
+		}
+		widget.setHidden(true);
+		hiddenRewardWidget = widget;
+	}
+
+	private void unhideRewardWidget()
+	{
+		if (hiddenRewardWidget != null)
+		{
+			hiddenRewardWidget.setHidden(false);
+			hiddenRewardWidget = null;
+		}
+	}
+
+	private void hideNotificationWidget()
+	{
+		Widget widget = client.getWidget(InterfaceID.NotificationDisplay.UNIVERSE);
+		if (widget == null)
+		{
+			return;
+		}
+		widget.setHidden(true);
+		hiddenNotificationWidget = widget;
+	}
+
+	private void restoreHiddenWidgets()
+	{
+		unhideRewardWidget();
+		if (hiddenNotificationWidget != null)
+		{
+			hiddenNotificationWidget.setHidden(false);
+			hiddenNotificationWidget = null;
+		}
 	}
 
 	private boolean isClueCasket(int itemId)
