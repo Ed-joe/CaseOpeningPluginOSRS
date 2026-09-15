@@ -2,6 +2,8 @@
 
 Clue Case Opening is a RuneLite plugin that gives clue-casket rewards a CS-style case-opening reveal. Open a casket normally and the plugin temporarily hides the standard reward interface, plays an animated reward reel, and then displays the complete loot you actually received.
 
+The fancy new casket animations were created in Aseprite by **Adharmic (aka Goospitter)**.
+
 The animation is cosmetic only: the plugin does not choose, reroll, delay, replace, or otherwise change clue rewards.
 
 <p align="center">
