@@ -14,6 +14,8 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -21,6 +23,8 @@ import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import javax.imageio.ImageIO;
+import net.runelite.api.gameval.ItemID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.MouseListener;
@@ -43,7 +47,20 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private static final int CASKET_LANDS_AT = 400;
 	private static final int CASKET_OPENING_DURATION = 1_450;
 	private static final int CASKET_LID_RELEASE_AT = 950;
+	private static final int CASKET_SPRITE_FRAME_WIDTH = 48;
+	private static final int CASKET_SPRITE_FRAME_HEIGHT = 48;
+	private static final int CASKET_SPRITE_FRAME_COUNT = 6;
+	private static final int CASKET_SPRITE_ANIMATION_DURATION = 250;
+	private static final int CASKET_SPRITE_SCALE = 8;
+	private static final int CASKET_SPRITE_Y_OFFSET = -5;
+	private static final int CASKET_SPRITE_VISIBLE_BOTTOM = 43;
 	private static final int REEL_DURATION = 4_000;
+	private static final BufferedImage HARD_CASKET_OPENING_SHEET = loadCasketOpeningSheet("hard");
+	private static final BufferedImage BEGINNER_CASKET_OPENING_SHEET = loadCasketOpeningSheet("beginner");
+	private static final BufferedImage EASY_CASKET_OPENING_SHEET = loadCasketOpeningSheet("easy");
+	private static final BufferedImage MEDIUM_CASKET_OPENING_SHEET = loadCasketOpeningSheet("medium");
+	private static final BufferedImage ELITE_CASKET_OPENING_SHEET = loadCasketOpeningSheet("elite");
+	private static final BufferedImage MASTER_CASKET_OPENING_SHEET = loadCasketOpeningSheet("master");
 
 	private final ItemManager itemManager;
 	private final ClueCaseConfig config;
@@ -396,11 +413,16 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 
 	private void drawCasketDrop(Graphics2D graphics, int x, int y, int width, int height, long elapsed)
 	{
-		BufferedImage casket = itemManager.getImage(casketItemId, 1, false);
+		BufferedImage openingSheet = getCasketOpeningSheet();
+		boolean useCasketSheet = openingSheet != null;
+		BufferedImage casket = useCasketSheet
+			? openingSheet : itemManager.getImage(casketItemId, 1, false);
 		if (casket == null)
 		{
 			return;
 		}
+		int sourceWidth = useCasketSheet ? CASKET_SPRITE_FRAME_WIDTH : casket.getWidth();
+		int sourceHeight = useCasketSheet ? CASKET_SPRITE_FRAME_HEIGHT : casket.getHeight();
 
 		double fallProgress = Math.min(1.0, elapsed / (double) CASKET_LANDS_AT);
 		double acceleratedFall = fallProgress * fallProgress;
@@ -408,13 +430,17 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 			Math.min(1.0, (elapsed - CASKET_LANDS_AT) / (double) (CASKET_DROP_DURATION - CASKET_LANDS_AT)));
 		double squashProgress = Math.max(0.0,
 			Math.min(1.0, (elapsed - CASKET_LANDS_AT) / 180.0));
-		int normalSize = 270;
+		int normalWidth = useCasketSheet
+			? CASKET_SPRITE_FRAME_WIDTH * CASKET_SPRITE_SCALE : 270;
+		int normalHeight = useCasketSheet
+			? CASKET_SPRITE_FRAME_HEIGHT * CASKET_SPRITE_SCALE : 270;
 		int squash = (int) Math.round(Math.sin(squashProgress * Math.PI) * 24.0);
-		int imageWidth = normalSize + squash;
-		int imageHeight = normalSize - squash;
-		int landingY = y + (height - normalSize) / 2;
-		int startY = y - normalSize;
-		int imageY = (int) Math.round(startY + (landingY - startY) * acceleratedFall) + squash / 2;
+		int imageWidth = normalWidth + squash;
+		int imageHeight = normalHeight - squash;
+		int landingY = y + (height - normalHeight) / 2;
+		int startY = y - normalHeight;
+		int imageY = (int) Math.round(startY + (landingY - startY) * acceleratedFall) + squash / 2
+			+ (useCasketSheet ? CASKET_SPRITE_Y_OFFSET * CASKET_SPRITE_SCALE : 0);
 		int imageX = x + (width - imageWidth) / 2;
 
 		Graphics2D dropGraphics = (Graphics2D) graphics.create();
@@ -431,21 +457,29 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 				double pivotY = imageY + imageHeight;
 				AffineTransform originalTransform = dropGraphics.getTransform();
 				dropGraphics.rotate(angle, pivotX, pivotY);
-				dropGraphics.drawImage(casket, imageX, imageY, imageWidth, imageHeight, null);
+				dropGraphics.drawImage(casket,
+					imageX, imageY, imageX + imageWidth, imageY + imageHeight,
+					0, 0, sourceWidth, sourceHeight, null);
 				dropGraphics.setTransform(originalTransform);
 			}
 			else
 			{
-				dropGraphics.drawImage(casket, imageX, imageY, imageWidth, imageHeight, null);
+				dropGraphics.drawImage(casket,
+					imageX, imageY, imageX + imageWidth, imageY + imageHeight,
+					0, 0, sourceWidth, sourceHeight, null);
 			}
 			if (impactProgress > 0.0)
 			{
 				int ringWidth = (int) Math.round(90 + squashProgress * 280);
 				int alpha = (int) Math.round(130 * (1.0 - squashProgress));
+				int casketBottom = useCasketSheet
+					? landingY + (CASKET_SPRITE_Y_OFFSET + CASKET_SPRITE_VISIBLE_BOTTOM)
+						* CASKET_SPRITE_SCALE
+					: landingY + normalHeight;
 				dropGraphics.setColor(new Color(255, 205, 54, alpha));
 				dropGraphics.setStroke(new BasicStroke(4f));
 				dropGraphics.drawOval(x + width / 2 - ringWidth / 2,
-					landingY + normalSize - 24, ringWidth, Math.max(8, ringWidth / 8));
+					casketBottom - 24, ringWidth, Math.max(8, ringWidth / 8));
 			}
 		}
 		finally
@@ -455,6 +489,65 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	}
 
 	private void drawCasketOpening(Graphics2D graphics, int x, int y, int width, int height, long elapsed)
+	{
+		BufferedImage openingSheet = getCasketOpeningSheet();
+		if (openingSheet != null)
+		{
+			drawSpriteCasketOpening(graphics, x, y, width, height, elapsed, openingSheet);
+			return;
+		}
+
+		drawLegacyCasketOpening(graphics, x, y, width, height, elapsed);
+	}
+
+	private void drawSpriteCasketOpening(Graphics2D graphics, int x, int y, int width, int height,
+		long elapsed, BufferedImage openingSheet)
+	{
+		long animationElapsed = Math.max(0L, elapsed - CASKET_LID_RELEASE_AT);
+		int frame = Math.min(CASKET_SPRITE_FRAME_COUNT - 1,
+			(int) (animationElapsed * CASKET_SPRITE_FRAME_COUNT
+				/ CASKET_SPRITE_ANIMATION_DURATION));
+		double opening = frame / (double) (CASKET_SPRITE_FRAME_COUNT - 1);
+		double fade = Math.max(0.0, Math.min(1.0, (elapsed - 1_300.0) / 150.0));
+		int shake = elapsed >= 350 && elapsed < CASKET_LID_RELEASE_AT
+			? (int) Math.round(Math.sin(elapsed * 0.075) * (2.0 + (elapsed - 350) / 100.0)) : 0;
+		int imageWidth = CASKET_SPRITE_FRAME_WIDTH * CASKET_SPRITE_SCALE;
+		int imageHeight = CASKET_SPRITE_FRAME_HEIGHT * CASKET_SPRITE_SCALE;
+		int imageX = x + (width - imageWidth) / 2 + shake;
+		int imageY = y + (height - imageHeight) / 2
+			+ CASKET_SPRITE_Y_OFFSET * CASKET_SPRITE_SCALE;
+
+		Graphics2D openingGraphics = (Graphics2D) graphics.create();
+		try
+		{
+			openingGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+				RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+			openingGraphics.setComposite(AlphaComposite.SrcOver.derive((float) (1.0 - fade)));
+
+			if (opening > 0.0)
+			{
+				int flashAlpha = (int) Math.round(150 * opening);
+				openingGraphics.setColor(new Color(255, 232, 145, flashAlpha));
+				int burst = (int) Math.round(40
+					+ opening * (Math.max(imageWidth, imageHeight) - 6));
+				openingGraphics.fillOval(x + width / 2 - burst / 2,
+					y + height / 2 - burst / 2, burst, burst);
+			}
+
+			int sourceX = frame * CASKET_SPRITE_FRAME_WIDTH;
+			openingGraphics.drawImage(openingSheet,
+				imageX, imageY, imageX + imageWidth, imageY + imageHeight,
+				sourceX, 0, sourceX + CASKET_SPRITE_FRAME_WIDTH,
+				CASKET_SPRITE_FRAME_HEIGHT, null);
+		}
+		finally
+		{
+			openingGraphics.dispose();
+		}
+	}
+
+	private void drawLegacyCasketOpening(Graphics2D graphics, int x, int y, int width, int height,
+		long elapsed)
 	{
 		BufferedImage casket = itemManager.getImage(casketItemId, 1, false);
 		if (casket == null)
@@ -507,6 +600,33 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 			graphics.setColor(new Color(255, 232, 145, flashAlpha));
 			int burst = (int) Math.round(40 + opening * 150);
 			graphics.fillOval(x + width / 2 - burst / 2, y + height / 2 - burst / 2, burst, burst);
+		}
+	}
+
+	private BufferedImage getCasketOpeningSheet()
+	{
+		switch (casketItemId)
+		{
+			case ItemID.TRAIL_REWARD_CASKET_BEGINNER: return BEGINNER_CASKET_OPENING_SHEET;
+			case ItemID.TRAIL_REWARD_CASKET_EASY: return EASY_CASKET_OPENING_SHEET;
+			case ItemID.TRAIL_REWARD_CASKET_MEDIUM: return MEDIUM_CASKET_OPENING_SHEET;
+			case ItemID.TRAIL_REWARD_CASKET_HARD: return HARD_CASKET_OPENING_SHEET;
+			case ItemID.TRAIL_REWARD_CASKET_ELITE: return ELITE_CASKET_OPENING_SHEET;
+			case ItemID.TRAIL_REWARD_CASKET_MASTER: return MASTER_CASKET_OPENING_SHEET;
+			default: return null;
+		}
+	}
+
+	private static BufferedImage loadCasketOpeningSheet(String tier)
+	{
+		try (InputStream stream = ClueCaseOverlay.class.getResourceAsStream(
+			"/reward-casket-" + tier + "-sprite-sheet.png"))
+		{
+			return stream == null ? null : ImageIO.read(stream);
+		}
+		catch (IOException ex)
+		{
+			return null;
 		}
 	}
 
