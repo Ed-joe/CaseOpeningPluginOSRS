@@ -79,7 +79,6 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private boolean spaceDown;
 	private boolean consumeLeftGesture;
 	private boolean dropSoundPlayed;
-	private boolean openSoundPlayed;
 	private int lastBounceImpact;
 	private int lastTickIndex;
 	private double winningStopPoint = TILE_SIZE / 2.0;
@@ -130,7 +129,6 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		skippedToResult = false;
 		spaceDown = false;
 		dropSoundPlayed = false;
-		openSoundPlayed = false;
 		lastBounceImpact = 0;
 		lastTickIndex = -1;
 	}
@@ -204,11 +202,6 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 			return null;
 		}
 
-		if (!skippedToResult && !openSoundPlayed)
-		{
-			openSoundPlayed = true;
-			sounds.playOpen();
-		}
 		if (elapsed < CASKET_DROP_DURATION + CASKET_OPENING_DURATION)
 		{
 			drawCasketOpening(graphics, x, y, panelWidth, panelHeight, elapsed - CASKET_DROP_DURATION);
@@ -376,7 +369,6 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		skippedToResult = true;
 		skipToResultRequested = false;
 		dropSoundPlayed = true;
-		openSoundPlayed = true;
 		lastBounceImpact = 2;
 		startedAt = System.currentTimeMillis()
 			- CASKET_DROP_DURATION - CASKET_OPENING_DURATION - REEL_DURATION;
@@ -787,14 +779,14 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		boolean hasUnpricedItem = false;
 		for (Loot reward : rewards)
 		{
-			int itemPrice = itemManager.getItemPrice(reward.getItemId());
+			long itemPrice = itemManager.getItemPrice(reward.getItemId());
 			if (itemPrice <= 0)
 			{
 				hasUnpricedItem = true;
 			}
 			else
 			{
-				totalValue += (long) itemPrice * reward.getQuantity();
+				totalValue += itemPrice * reward.getQuantity();
 			}
 		}
 		String label = totalValue == 0L && hasUnpricedItem

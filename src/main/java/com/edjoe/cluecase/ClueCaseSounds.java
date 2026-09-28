@@ -9,7 +9,6 @@ import net.runelite.api.Client;
 class ClueCaseSounds
 {
 	// Sound IDs currently have no generated gameval constants in the RuneLite API.
-	private static final int BANK_PIN_SUCCESS = 2274;
 	private static final int CASKET_THUD = 2109;
 	private static final int CLOCK_TICK_SINGLE = 4195;
 	private static final int UNIQUE_DROP = 6765;
@@ -22,11 +21,6 @@ class ClueCaseSounds
 	{
 		this.client = client;
 		this.config = config;
-	}
-
-	void playOpen()
-	{
-		play(BANK_PIN_SUCCESS);
 	}
 
 	void playDrop()
