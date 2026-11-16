@@ -19,12 +19,13 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.EnumMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.imageio.ImageIO;
-import net.runelite.api.gameval.ItemID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.input.KeyListener;
 import net.runelite.client.input.MouseListener;
@@ -55,12 +56,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private static final int CASKET_SPRITE_Y_OFFSET = -5;
 	private static final int CASKET_SPRITE_VISIBLE_BOTTOM = 43;
 	private static final int REEL_DURATION = 4_000;
-	private static final BufferedImage HARD_CASKET_OPENING_SHEET = loadCasketOpeningSheet("hard");
-	private static final BufferedImage BEGINNER_CASKET_OPENING_SHEET = loadCasketOpeningSheet("beginner");
-	private static final BufferedImage EASY_CASKET_OPENING_SHEET = loadCasketOpeningSheet("easy");
-	private static final BufferedImage MEDIUM_CASKET_OPENING_SHEET = loadCasketOpeningSheet("medium");
-	private static final BufferedImage ELITE_CASKET_OPENING_SHEET = loadCasketOpeningSheet("elite");
-	private static final BufferedImage MASTER_CASKET_OPENING_SHEET = loadCasketOpeningSheet("master");
+	private static final Map<LootSource, BufferedImage> OPENING_SHEETS = loadOpeningSheets();
 
 	private final ItemManager itemManager;
 	private final ClueCaseConfig config;
@@ -68,7 +64,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private List<List<Loot>> reel = Collections.emptyList();
 	private List<LootRarity> reelRarities = Collections.emptyList();
 	private List<Loot> actualLoot = Collections.emptyList();
-	private int casketItemId;
+	private LootSource source = LootSource.EASY_CLUE;
 	private volatile long startedAt;
 	private boolean active;
 	private boolean awaitingLoot;
@@ -96,16 +92,22 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		setLayer(OverlayLayer.ABOVE_WIDGETS);
 	}
 
-	void start(List<Loot> loot, int casketItemId)
+	void start(List<Loot> loot, LootSource source)
 	{
-		if (!active || !awaitingLoot || this.casketItemId != casketItemId)
+		start(loot, source, RunContext.FULL);
+	}
+
+	/** Starts the reel; the run shapes teaser bundles for chests whose loot depends on it. */
+	void start(List<Loot> loot, LootSource source, RunContext run)
+	{
+		if (!active || !awaitingLoot || this.source != source)
 		{
-			begin(casketItemId);
+			begin(source);
 		}
 		actualLoot = Collections.unmodifiableList(new ArrayList<>(loot));
-		this.casketItemId = casketItemId;
-		reel = buildReel(actualLoot, casketItemId);
-		reelRarities = buildReelRarities(actualLoot, casketItemId);
+		this.source = source;
+		reel = buildReel(actualLoot, source, run);
+		reelRarities = buildReelRarities(actualLoot, source);
 		winningStopPoint = chooseWinningStopPoint();
 		awaitingLoot = false;
 		if (skipToResultRequested)
@@ -114,9 +116,9 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		}
 	}
 
-	void begin(int casketItemId)
+	void begin(LootSource source)
 	{
-		this.casketItemId = casketItemId;
+		this.source = source;
 		reel = Collections.emptyList();
 		reelRarities = Collections.emptyList();
 		actualLoot = Collections.emptyList();
@@ -408,7 +410,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 		BufferedImage openingSheet = getCasketOpeningSheet();
 		boolean useCasketSheet = openingSheet != null;
 		BufferedImage casket = useCasketSheet
-			? openingSheet : itemManager.getImage(casketItemId, 1, false);
+			? openingSheet : fallbackIcon();
 		if (casket == null)
 		{
 			return;
@@ -541,7 +543,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private void drawLegacyCasketOpening(Graphics2D graphics, int x, int y, int width, int height,
 		long elapsed)
 	{
-		BufferedImage casket = itemManager.getImage(casketItemId, 1, false);
+		BufferedImage casket = fallbackIcon();
 		if (casket == null)
 		{
 			return;
@@ -597,50 +599,55 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 
 	private BufferedImage getCasketOpeningSheet()
 	{
-		switch (casketItemId)
-		{
-			case ItemID.TRAIL_REWARD_CASKET_BEGINNER: return BEGINNER_CASKET_OPENING_SHEET;
-			case ItemID.TRAIL_REWARD_CASKET_EASY: return EASY_CASKET_OPENING_SHEET;
-			case ItemID.TRAIL_REWARD_CASKET_MEDIUM: return MEDIUM_CASKET_OPENING_SHEET;
-			case ItemID.TRAIL_REWARD_CASKET_HARD: return HARD_CASKET_OPENING_SHEET;
-			case ItemID.TRAIL_REWARD_CASKET_ELITE: return ELITE_CASKET_OPENING_SHEET;
-			case ItemID.TRAIL_REWARD_CASKET_MASTER: return MASTER_CASKET_OPENING_SHEET;
-			default: return null;
-		}
+		return OPENING_SHEETS.get(source);
 	}
 
-	private static BufferedImage loadCasketOpeningSheet(String tier)
+	/** Item icon used when a source has no sprite sheet; chests have no item to fall back to. */
+	private BufferedImage fallbackIcon()
 	{
-		try (InputStream stream = ClueCaseOverlay.class.getResourceAsStream(
-			"/reward-casket-" + tier + "-sprite-sheet.png"))
-		{
-			return stream == null ? null : ImageIO.read(stream);
-		}
-		catch (IOException ex)
-		{
-			return null;
-		}
+		return source.isClue() ? itemManager.getImage(source.getCasketItemId(), 1, false) : null;
 	}
 
-	private List<List<Loot>> buildReel(List<Loot> winningLoot, int casketItemId)
+	private static Map<LootSource, BufferedImage> loadOpeningSheets()
+	{
+		Map<LootSource, BufferedImage> sheets = new EnumMap<>(LootSource.class);
+		for (LootSource lootSource : LootSource.values())
+		{
+			try (InputStream stream = ClueCaseOverlay.class.getResourceAsStream(
+				lootSource.getSpriteSheetResource()))
+			{
+				if (stream != null)
+				{
+					sheets.put(lootSource, ImageIO.read(stream));
+				}
+			}
+			catch (IOException ex)
+			{
+				// Fall back to the item-icon animation for this source.
+			}
+		}
+		return sheets;
+	}
+
+	private List<List<Loot>> buildReel(List<Loot> winningLoot, LootSource source, RunContext run)
 	{
 		List<List<Loot>> items = new ArrayList<>();
 		for (int index = 0; index < REEL_ITEM_COUNT; index++)
 		{
-			items.add(ClueLootSimulator.generate(casketItemId, rollCounterStrikeRarity()));
+			items.add(ClueLootSimulator.generate(source, rollCounterStrikeRarity(), run));
 		}
 		items.set(WINNING_INDEX, winningLoot);
 		return items;
 	}
 
-	private List<LootRarity> buildReelRarities(List<Loot> winningLoot, int casketItemId)
+	private List<LootRarity> buildReelRarities(List<Loot> winningLoot, LootSource source)
 	{
 		List<LootRarity> rarities = new ArrayList<>(REEL_ITEM_COUNT);
 		for (int index = 0; index < REEL_ITEM_COUNT; index++)
 		{
-			rarities.add(ClueLootSimulator.rarityFor(reel.get(index), casketItemId));
+			rarities.add(ClueLootSimulator.rarityFor(reel.get(index), source));
 		}
-		rarities.set(WINNING_INDEX, ClueLootSimulator.rarityFor(winningLoot, casketItemId));
+		rarities.set(WINNING_INDEX, ClueLootSimulator.rarityFor(winningLoot, source));
 		return rarities;
 	}
 
@@ -688,7 +695,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private void drawTile(Graphics2D graphics, Loot loot, int x, int y)
 	{
 		drawTile(graphics, loot, x, y,
-			ClueLootSimulator.rarityFor(Collections.singletonList(loot), casketItemId));
+			ClueLootSimulator.rarityFor(Collections.singletonList(loot), source));
 	}
 
 	private void drawTile(Graphics2D graphics, Loot loot, int x, int y, LootRarity rarity)
@@ -725,7 +732,7 @@ class ClueCaseOverlay extends Overlay implements KeyListener, MouseListener
 	private void drawRewardTile(Graphics2D graphics, List<Loot> rewards, int x, int y)
 	{
 		drawRewardTile(graphics, rewards, x, y,
-			ClueLootSimulator.rarityFor(rewards, casketItemId));
+			ClueLootSimulator.rarityFor(rewards, source));
 	}
 
 	private void drawRewardTile(Graphics2D graphics, List<Loot> rewards, int x, int y,
